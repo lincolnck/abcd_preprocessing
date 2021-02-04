@@ -1,0 +1,80 @@
+% This function gathers images of a specified type ("T1", "T1-NORM", etc.)
+% into directories of a specified size (=10 subjects, etc.). It can also
+% compress those resulting directories to provide the input for the batch
+% T1 segmentation processing on MRICloud.
+%
+% Input:
+%    targetDir: The full filepath of the directory containing the subject
+%    specific directories (i.e. the directories named for each subject
+%    containing all the images for that respective subject).
+%    groupSize: The size of the resulting group to be uploaded to MRICloud.
+%    The batch T1 segmentation on MRICloud accepts up to 10 subjects in one
+%    batch.
+%    imageType: The type of image to be gathered. "T1", "T1-NORM", etc. The
+%    script looks for the imageType string within the filename.
+%    zipFiles: "Y" or "N"
+%    groupsDir: The name of the directory where the group subdirectories
+%    will be created, if it doesn't exist, it will be created. 
+%
+% Output:
+%    The images will be sorted into groups of a specified size and zipped
+%    if wanted.
+%    
+% written by Lincoln Kartchner (lincoln@jhu.edu)
+% 2021-02-03
+
+function f = createT1groups(targetDir,groupSize,imageType,zipFiles,groupsDir)
+
+p = mfilename('fullpath')
+p = fileparts(p);
+
+d_number=1;
+new_subdir_name=join(["group" d_number],"_");
+
+if ~exist(targetDir, 'dir') || isempty(targetDir)
+    error('The specified target directory: %s does not exist.', targetDir);
+end
+if ~exist(groupsDir, 'dir')
+    cd(fullfile(targetDir))
+    mkdir(fullfile(join([".." filesep groupsDir],"")))
+end
+mkdir(fullfile(join([".." filesep groupsDir filesep new_subdir_name],"")))
+
+subTargetDir = dir(fullfile(targetDir,'*'));
+nTargetDir = setdiff({subTargetDir([subTargetDir.isdir]).name},{'.','..'});
+for ii = 1:numel(nTargetDir)
+    T = dir(fullfile(targetDir,nTargetDir{ii},'*'));
+    C = {T(~[T.isdir]).name}; % files in subfolder.
+    for jj = 1:numel(C)
+        subjectImage = fullfile(targetDir,nTargetDir{ii},C{jj});
+        numFiles=dir(fullfile(join([".." filesep groupsDir filesep new_subdir_name],"")));
+        image_number=2+(groupSize*2);
+        if numel(numFiles) < image_number
+            if contains(subjectImage,imageType)
+                subject_and_image_name = split(subjectImage,filesep);
+                subject_name = subject_and_image_name{end-1};
+                image_name = subject_and_image_name{end};
+                dest_name = join([subject_name, image_name],"_");
+                copyfile(subjectImage, fullfile(join([".." filesep groupsDir filesep new_subdir_name filesep dest_name],"")));
+            end
+        else
+            if zipFiles == "Y"
+                cd(fullfile(join([".." filesep groupsDir filesep new_subdir_name],"")))
+                zip(new_subdir_name,{'*.img','*.hdr'})
+                cd(fullfile(targetDir))
+            end
+            d_number=d_number+1;
+            new_subdir_name=join(["group" d_number],"_");
+            mkdir(fullfile(join([".." filesep groupsDir filesep new_subdir_name],"")));
+            if contains(subjectImage,imageType)
+                subject_and_image_name = split(subjectImage,filesep);
+                subject_name = subject_and_image_name{end-1};
+                image_name = subject_and_image_name{end};
+                dest_name = join([subject_name, image_name],"_");
+                copyfile(subjectImage, fullfile(join([".." filesep groupsDir filesep new_subdir_name filesep dest_name],"")));
+            end
+        end
+    end
+end
+
+cd(p)
